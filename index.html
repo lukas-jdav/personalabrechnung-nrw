@@ -42,7 +42,7 @@
 		 * Die Eingabefelder für Datum und Orte bleiben dadurch sauber ausgerichtet.
 		 */
 		.reise {
-			display: none;
+			display: grid;
 			grid-template-columns: max-content auto max-content 1fr max-content 1fr;
 			grid-template-rows: 1fr;
 			grid-column-gap: 0.5em;
@@ -756,14 +756,6 @@
 		const urlVersion = new URL(window.location).searchParams.get("version")
 		setFormVersion(["standard", "personal", "teamer"].includes(urlVersion) ? urlVersion : "standard")
 		document.querySelector("cost-header").addEventListener("version-change", (e) => setFormVersion(e.detail))
-
-		;["fahrtkosten-standard", "fahrtkosten-personal", "fahrtkosten-teamer"].forEach(id => {
-			const section = document.querySelector("#" + id)
-			const reise = section.querySelector(".reise")
-			section.addEventListener("cost-item-updated", () => {
-				reise.style.display = section.shadowRoot.querySelectorAll("cost-item").length > 0 ? "grid" : "none"
-			})
-		})
 	</script>
 </body>
 

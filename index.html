@@ -617,8 +617,8 @@
 			</div>
 			<script>
 				document.querySelector("#fahrtkosten-personal").registerOptions([
-					new BahnMitBahncard("Bahn", {
-						hint: `Ticketpreis 2. Klasse, 110 % Erstattung bei BahnCard-Nutzung. Auch Fahrradtickets & Sitzplatzreservierungen (nicht mit BC-Rabatt kombinierbar → Einträge aufteilen).`
+					new Bahn("Bahn", {
+						hint: `Ticketpreis 2. Klasse. Bei Nutzung einer BahnCard ist diese separat abzurechnen.`
 					}),
 					new Auslage("ÖPNV"),
 					new Pkw("PKW")

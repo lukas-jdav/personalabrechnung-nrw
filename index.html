@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Abrechnung | JDAV NRW</title>
+	<title>Reisekostenabrechnung | JDAV NRW</title>
 	<link rel="icon" type="image/x-icon" href="favicon.png">
 	<link rel="stylesheet" type="text/css" href="lib/fonts.css">
 	<link rel="stylesheet" type="text/css" href="lib/style.css">
@@ -85,9 +85,9 @@
 
 		<div class="veranstaltung">
 			<span>Kurs / Veranstaltung:</span>
-			<input placeholder="(Titel, Ort)">
+			<input id="veranstaltung-titel" placeholder="(Titel, Ort)">
 			<span>Kurs-Nr.:</span>
-			<input class="optional">
+			<input id="veranstaltung-kursnr" class="optional">
 		</div>
 
 		<script>
@@ -764,6 +764,95 @@
 				reise.style.display = section.shadowRoot.querySelectorAll("cost-item").length > 0 ? "grid" : "none"
 			})
 		})
+
+		// ── Persistenz ──────────────────────────────────────────────────────
+		const STORAGE_KEY = "jdav-abrechnung-v1"
+		const SECTION_IDS = ["fahrtkosten-standard", "fahrtkosten-personal", "fahrtkosten-teamer", "honorar", "verpflegung", "auslagen"]
+		const FIELD_IDS   = ["name", "email", "street", "plzort", "iban", "inhaber", "veranstaltung-titel", "veranstaltung-kursnr"]
+
+		function saveState() {
+			try {
+				const state = { version: document.body.dataset.formularVersion, fields: {}, sections: {}, footers: {} }
+
+				FIELD_IDS.forEach(id => {
+					const el = document.getElementById(id)
+					if (el) state.fields[id] = el.value
+				})
+
+				SECTION_IDS.forEach(id => {
+					const section = document.getElementById(id)
+					if (!section) return
+					const entry = { rows: section.getState() }
+					const reiseInputs = section.querySelectorAll(".reise input")
+					if (reiseInputs.length) entry.reise = [...reiseInputs].map(i => i.value)
+					state.sections[id] = entry
+				})
+
+				document.querySelectorAll("cost-footer").forEach(footer => {
+					const key = [...footer.classList].find(c => c.startsWith("formular-version-"))
+					if (!key || !footer.shadowRoot) return
+					const sr = footer.shadowRoot
+					state.footers[key] = {
+						datum:       sr.querySelector("#sig-datum")?.value      ?? "",
+						ort:         sr.querySelector("#sig-ort")?.value        ?? "",
+						bemerkungen: sr.querySelector("#ta_bemerkungen")?.value ?? "",
+					}
+				})
+
+				localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+			} catch (_) { /* localStorage nicht verfügbar oder voll */ }
+		}
+
+		function loadState() {
+			try {
+				const raw = localStorage.getItem(STORAGE_KEY)
+				if (!raw) return
+				const state = JSON.parse(raw)
+
+				if (state.version) setFormVersion(state.version)
+
+				Object.entries(state.fields ?? {}).forEach(([id, value]) => {
+					const el = document.getElementById(id)
+					if (el) el.value = value
+				})
+
+				Object.entries(state.sections ?? {}).forEach(([id, entry]) => {
+					const section = document.getElementById(id)
+					if (!section) return
+					if (entry.rows?.length) section.setState(entry.rows)
+					if (entry.reise?.length) {
+						const inputs = section.querySelectorAll(".reise input")
+						entry.reise.forEach((val, i) => { if (inputs[i]) inputs[i].value = val })
+						if (section.shadowRoot.querySelectorAll("cost-item").length > 0) {
+							const reise = section.querySelector(".reise")
+							if (reise) reise.style.display = "grid"
+						}
+					}
+				})
+
+				document.querySelectorAll("cost-footer").forEach(footer => {
+					const key = [...footer.classList].find(c => c.startsWith("formular-version-"))
+					const saved = state.footers?.[key]
+					if (!saved || !footer.shadowRoot) return
+					const sr = footer.shadowRoot
+					if (saved.datum)       { const el = sr.querySelector("#sig-datum");       if (el) el.value = saved.datum }
+					if (saved.ort)         { const el = sr.querySelector("#sig-ort");         if (el) el.value = saved.ort }
+					if (saved.bemerkungen) {
+						const el = sr.querySelector("#ta_bemerkungen")
+						if (el) { el.value = saved.bemerkungen; el.style.height = ""; el.style.height = el.scrollHeight + "px" }
+					}
+				})
+			} catch (_) { /* Ungültiger gespeicherter Stand – verwerfen */ }
+		}
+
+		let saveTimer
+		function debouncedSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveState, 500) }
+
+		document.addEventListener("input",             debouncedSave)
+		document.addEventListener("change",            debouncedSave)
+		document.addEventListener("cost-item-updated", debouncedSave)
+
+		loadState()
 	</script>
 </body>
 

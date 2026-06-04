@@ -1,0 +1,71 @@
+name: PR Preview
+
+# Postet bei jedem Pull Request automatisch einen githack-Vorschaulink als
+# Kommentar, mit dem sich das Formular direkt im Browser testen lässt.
+#
+# Hinweis zur Sicherheit: pull_request_target wird genutzt, damit auch PRs
+# aus Forks die nötigen Schreibrechte zum Kommentieren haben. Der Job checkt
+# bewusst KEINEN PR-Code aus und führt ihn nicht aus – er liest lediglich die
+# Head-SHA bzw. den Branch-Namen und postet daraus einen Kommentar.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  preview-link:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vorschaulink kommentieren
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: https://rawcdn.githack.com/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/index.html
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        with:
+          script: |
+            const marker = "<!-- pr-preview -->"
+            const body = `${marker}
+            **Vorschau für diesen PR:**
+
+            👉 [Formular im Browser testen](${process.env.PREVIEW_URL})
+
+            - Branch: \`${process.env.HEAD_REF}\`
+            - Commit: \`${process.env.COMMIT_SHA}\`
+
+            Die Vorschau aktualisiert sich automatisch bei neuen Commits.`
+
+            const { owner, repo } = context.repo
+            const issue_number = context.payload.pull_request.number
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+            })
+
+            const existing = comments.find((comment) =>
+              comment.user?.type === "Bot" && comment.body?.includes(marker)
+            )
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              })
+              return
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            })

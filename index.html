@@ -10,24 +10,10 @@
 	<link rel="stylesheet" type="text/css" href="lib/style.css">
 	<script src="lib/cost.js"></script>
 	<style type="text/css">
-		#button-formular-standard,
-		#button-formular-teamer {
-			position: absolute;
-			top: -1.75em;
-			right: 3em;
-			font-size: 0.9em;
-			color: rgba(0 100 0 / 0.5);
-			cursor: pointer;
-		}
-
-		body:not([data-formular-version="standard"]) .formular-version-standard {
-			display: none;
-		}
-
-		body:not([data-formular-version="teamer"]) .formular-version-teamer {
-			display: none;
-		}
-
+		/*
+		 * Allgemeines Layout für die Stammdaten der abrechnenden Person.
+		 * Es werden jeweils zwei Spalten aus Label + Eingabefeld nebeneinander dargestellt.
+		 */
 		.absender {
 			display: grid;
 			grid-template-columns: max-content 1fr max-content 1fr;
@@ -36,6 +22,10 @@
 			margin-top: 0.75em;
 		}
 
+		/*
+		 * Block für Veranstaltungsdaten.
+		 * Die Zeile bekommt oben und unten eine stärkere Linie, damit sie sich visuell absetzt.
+		 */
 		.veranstaltung {
 			display: grid;
 			grid-template-columns: max-content 1fr max-content 15ch;
@@ -47,51 +37,29 @@
 			border-bottom: var(--border-thick);
 		}
 
+		/*
+		 * Raster für Hin- und Rückreise.
+		 * Die Eingabefelder für Datum und Orte bleiben dadurch sauber ausgerichtet.
+		 */
 		.reise {
-			display: grid;
-			grid-template-columns: max-content 13ch max-content 1fr max-content 1fr;
+			display: none;
+			grid-template-columns: max-content auto max-content 1fr max-content 1fr;
 			grid-template-rows: 1fr;
 			grid-column-gap: 0.5em;
 			grid-row-gap: 0.5em;
 			margin-bottom: 0.5em;
 		}
+
+		body:not([data-formular-version="standard"]) .formular-version-standard      { display: none; }
+		body:not([data-formular-version="personal"]) .formular-version-personal      { display: none; }
+		body:not([data-formular-version="teamer"])   .formular-version-teamer        { display: none; }
+		body[data-formular-version="standard"]       .formular-version-not-standard  { display: none; }
+
 	</style>
 </head>
 
-<body data-formular-version="standard">
+<body>
 	<main>
-		<div id="button-formular-teamer" class="formular-version-standard noprint">
-			Zur Teamer*innen-Version
-			<script>
-				document.querySelector("#button-formular-teamer").addEventListener("click", () => {
-					const url = new URL(window.location.href)
-					url.searchParams.set('team', '')
-					window.history.pushState(null, '', url.toString())
-
-					document.querySelector("body").setAttribute("data-formular-version", "teamer")
-					document.title = 'Team-' + document.title
-				})
-			</script>
-		</div>
-		<div id="button-formular-standard" class="formular-version-teamer noprint">
-			Zur Standard-Version
-			<script>
-				document.querySelector("#button-formular-standard").addEventListener("click", () => {
-					// Der Einfachheit halber laden wir die Seite neu anstatt die betreffenden
-					// Elemente dynamisch zu entfernen. Der URL-Query-Parameter muss vorher entfernt werden.
-					if (!window.confirm("Alle Eingaben werden gelöscht! Fortfahren?")) {
-						return;
-					}
-					const url = new URL(window.location.href)
-					url.searchParams.delete('team')
-					window.history.pushState(null, '', url.toString())
-
-					window.onbeforeunload = null
-					window.location.reload()
-				})
-			</script>
-		</div>
-
 		<cost-header heading="Abrechnung" img="logo.svg">
 			JDAV Nordrhein-Westfalen<br>
 			Elisabethstr. 14<br>
@@ -123,12 +91,10 @@
 		</div>
 
 		<script>
-			const urlParams = new URLSearchParams(window.location.search)
-			if (urlParams.has("team")) {
-				document.querySelector("body").setAttribute("data-formular-version", "teamer")
-				document.title = 'Team-' + document.title
-			}
-
+			/*
+			 * Allgemeine Auslage mit freiem Betrag.
+			 * Diese Klasse wird für Einkäufe, Unterkunft oder sonstige Belege verwendet.
+			 */
 			class Auslage extends CostKind {
 				template = `
 					<style>
@@ -149,6 +115,11 @@
 				}
 			}
 
+			/*
+			 * Bahnkosten als einfacher Belegbetrag.
+			 * Die Checkbox für BahnCard bleibt im Formular sichtbar, verändert hier aber den Betrag nicht.
+			 * So kann später nachvollzogen werden, ob eine BahnCard genutzt wurde.
+			 */
 			class Bahn extends CostKind {
 				template = `
 					<style>
@@ -165,29 +136,15 @@
 					<label for="bahncard">BahnCard genutzt</label>
 				`
 				total({ $ }) {
-					const preis = parseAmount($("#preis").value)
-					const bahncardFaktor = $("#bahncard").checked ? 1.1 : 1.0
-					return Math.round(preis * bahncardFaktor)
+					return parseAmount($("#preis").value)
 				}
 			}
 
-			class KmPauschale extends CostKind {
-				template = `
-					<style>
-						#km {
-							width: 10ch;
-							text-align: right;
-						}
-					</style>
-					<input id="km" placeholder="0"> km
-				`
-				total({ props, $ }) {
-					const km = parseNumber($("#km").value)
-					const max = props.maxCents || Infinity
-					return Math.min(km * props.centsProKm, max)
-				}
-			}
-
+			/*
+			 * PKW-Kosten mit unterschiedlichem Kilometer-Satz.
+			 * Über data-Attribute wird gesteuert, ob Zusatzfelder für Mitfahrer*innen
+			 * oder eine Begründung angezeigt werden.
+			 */
 			class Pkw extends CostKind {
 				template = `
 					<style>
@@ -211,22 +168,9 @@
 					</style>
 					<input id="km" placeholder="0"> km
 					<select id="satz">
-						<optgroup label="Anzahl Mitfahrer*innen:">
-							<option value="7" selected>alleine</option>
-							<option value="14" data-mitfahrer>+1 Mitfahrer*in</option>
-							<option value="21" data-mitfahrer>+2 Mitfahrer*innen</option>
-							<option value="28" data-mitfahrer>+3 Mitfahrer*innen</option>
-							<option value="35" data-mitfahrer>+4 Mitfahrer*innen</option>
-							<option value="42" data-mitfahrer>+5 Mitfahrer*innen</option>
-							<option value="49" data-mitfahrer>+6 Mitfahrer*innen</option>
-							<option value="56" data-mitfahrer>+7 Mitfahrer*innen</option>
-							<option value="63" data-mitfahrer>+8 Mitfahrer*innen</option>
-							<option value="30" data-relevanz>veranstaltungsrelevant</option>
-						</optgroup>
-						<optgroup label="Nur für LJL/LJS/LLT:">
-							<option value="20">LJL/LJS/LLT (alleine)</option>
-						  <option value="30" data-mitfahrer>LJL/LJS/LLT (1-3 Mitfahrer*innen)</option>
-						</optgroup>
+						<option value="20" selected>alleine</option>
+						<option value="30" data-mitfahrer>1-3 Mitfahrer*innen</option>
+						<option value="30" data-relevanz>veranstaltungsrelevant</option>
 					</select>
 					<label id="label-satz" class="hint" for="satz"></label>
 					<textarea id="mitfahrer" placeholder="Name(n) Mitfahrer*innen"></textarea>
@@ -245,14 +189,240 @@
 				}
 			}
 
-			class TagesSatz extends CostKind {
+			/*
+			 * Verpflegungsmehraufwand:
+			 * - Standardmäßig wird Deutschland verwendet.
+			 * - Für Deutschland gelten feste Pauschalen: 14 € für >8h / An- und Abreise,
+			 *   28 € für 24h.
+			 * - Für andere Länder kann der jeweilige Satz frei eingegeben werden,
+			 *   damit keine große Ländertabelle gepflegt werden muss.
+			 */
+			class VerpflegungsMehraufwand extends CostKind {
 				template = `
 					<style>
-						#tage {
-							width: 10ch;
+						.wrapper {
+							display: flex;
+							flex-direction: column;
+							gap: 0.5em;
+						}
+						.tagtyp-row,
+						.country-line {
+							display: flex;
+							flex-wrap: wrap;
+							align-items: center;
+							gap: 0.5em 0.75em;
+						}
+						.anzahl-wrap {
+							display: flex;
+							align-items: center;
+							gap: 0.4em;
+							margin-left: 0.25em;
+						}
+						/*
+						 * Da .country-line und .anzahl-wrap aktiv ein display setzen, würde das
+						 * HTML-Attribut hidden sonst überschrieben. Diese Regel stellt sicher,
+						 * dass ausgeblendete Blöcke wirklich verschwinden.
+						 */
+						.country-line[hidden],
+						.anzahl-wrap[hidden],
+						.freie-saetze[hidden] {
+							display: none !important;
+						}
+						.country-value {
+							font-weight: bold;
+						}
+						#land-name {
+							width: 100%;
+							max-width: 18ch;
+						}
+						#tagtyp {
+							min-width: 22ch;
+							max-width: 100%;
+						}
+						#anzahl,
+						#satz-frei-partial,
+						#satz-frei-full {
+							width: 8ch;
 							text-align: right;
 						}
+						.freie-saetze {
+							display: grid;
+							grid-template-columns: max-content 8ch max-content max-content 8ch max-content;
+							gap: 0.35em 0.5em;
+							align-items: center;
+						}
+						/*
+						 * Das Euro-Zeichen soll immer direkt neben dem Eingabefeld stehen
+						 * und nicht in eine neue Zeile umbrechen.
+						 */
+						.freie-saetze span {
+							display: inline-block;
+							white-space: nowrap;
+							margin-left: 0.15em;
+						}
+						.meals {
+							display: flex;
+							flex-wrap: wrap;
+							gap: 0.5em 0.75em;
+							align-items: center;
+						}
+						.meals .label {
+							margin-right: 0.15em;
+						}
+						#satzanzeige {
+							font-weight: bold;
+						}
+						#anmerkung {
+							width: 95%;
+						}
+						@media (max-width: 900px) {
+							.tagtyp-row {
+								align-items: flex-start;
+							}
+							.anzahl-wrap {
+								margin-left: 0;
+							}
+							.freie-saetze {
+								grid-template-columns: max-content 8ch max-content;
+							}
+						}
 					</style>
+
+					<div class="wrapper">
+						<div class="country-line" id="country-line-other" hidden>
+							<label for="land-name">Land</label>
+							<input id="land-name" placeholder="z. B. Österreich">
+						</div>
+
+						<div class="tagtyp-row">
+							<label for="tagtyp">Tagestyp</label>
+							<select id="tagtyp">
+								<option value="partial" selected>An-/Abreise bzw. &gt; 8 Stunden</option>
+								<option value="full">24 Stunden</option>
+							</select>
+
+							<div class="anzahl-wrap" id="anzahl-wrap" hidden>
+								<label for="anzahl">Anzahl</label>
+								<input id="anzahl" type="number" min="1" step="1" value="1">
+							</div>
+						</div>
+
+						<div class="freie-saetze" id="freie-saetze-wrap" hidden>
+							<label for="satz-frei-partial">Pauschale &gt; 8h / An- und Abreise</label>
+							<input id="satz-frei-partial" placeholder="0,00">
+							<span>€</span>
+							<label for="satz-frei-full">Pauschale 24h</label>
+							<input id="satz-frei-full" placeholder="0,00">
+							<span>€</span>
+						</div>
+
+						<div class="meals">
+							<span class="label">Mahlzeiten gestellt:</span>
+							<label><input id="fruehstueck" type="checkbox"> Frühstück</label>
+							<label><input id="mittag" type="checkbox"> Mittagessen</label>
+							<label><input id="abend" type="checkbox"> Abendessen</label>
+						</div>
+
+						<div class="hint" id="satzanzeige">Pauschale: 14,00 €</div>
+						<div class="hint" id="validierungshinweis" hidden>Für andere Länder bitte zuerst die 24h-Pauschale eintragen.</div>
+						<div class="hint">Kürzung: Frühstück 20 %, Mittag-/Abendessen je 40 % der vollen 24h-Pauschale.</div>
+
+						<div>
+							<input id="anmerkung" maxlength="80" class="optional" placeholder="z. B. Anreisetag, Rückreisetag, Besprechung in Wien, ...">
+						</div>
+					</div>
+				`
+
+				isOtherCountry({ props }) {
+					return props.countryType === "other"
+				}
+
+				/*
+				 * Alle Werte werden intern in Cent verarbeitet.
+				 * Deutschland nutzt feste Sätze, andere Länder lesen die frei eingetragenen Werte aus.
+				 */
+				selectedRate({ props, $ }) {
+					if (!this.isOtherCountry({ props })) {
+						return { full: 2800, partial: 1400 }
+					}
+
+					return {
+						full: parseAmount($("#satz-frei-full").value),
+						partial: parseAmount($("#satz-frei-partial").value),
+					}
+				}
+
+				/*
+				 * Für andere Länder ist die 24h-Pauschale zwingend nötig,
+				 * weil sich daran auch die Kürzung für gestellte Mahlzeiten orientiert.
+				 */
+				hasValidForeignRates({ props, $ }) {
+					if (!this.isOtherCountry({ props })) {
+						return true
+					}
+
+					const full = parseAmount($("#satz-frei-full").value)
+					return full > 0
+				}
+
+				/*
+				 * Die Variante wird bereits beim Hinzufügen festgelegt:
+				 * Deutschland oder anderes Land.
+				 * Nur für andere Länder werden freier Ländername und freie Sätze angezeigt.
+				 */
+				onChange({ props, $ }) {
+					const isOther = this.isOtherCountry({ props })
+					const tagtyp = $("#tagtyp").value
+
+					$("#country-line-other").hidden = !isOther
+					$("#freie-saetze-wrap").hidden = !isOther
+					$("#anzahl-wrap").hidden = tagtyp !== "full"
+
+					const ratesValid = isOther ? this.hasValidForeignRates({ props, $ }) : true
+					$("#validierungshinweis").hidden = ratesValid
+
+					/*
+					 * Bei Deutschland sollen die festen Pauschalen sofort angezeigt werden.
+					 * Die Validierung greift nur bei "anderes Land".
+					 */
+					if (isOther && !ratesValid) {
+						$("#satzanzeige").textContent = "Pauschale: –"
+						return
+					}
+
+					const rate = this.selectedRate({ props, $ })
+					const basis = tagtyp === "full" ? rate.full : rate.partial
+					$("#satzanzeige").textContent = "Pauschale: " + formatAmount(basis)
+				}
+
+				/*
+				 * Die Berechnung bleibt wie zuvor:
+				 * - Basispauschale je nach Tagestyp
+				 * - Kürzung für gestellte Mahlzeiten auf Basis der 24h-Pauschale
+				 * - Multiplikation mit der Anzahl der Tage
+				 */
+				total({ props, $ }) {
+					if (!this.hasValidForeignRates({ props, $ })) {
+						return 0
+					}
+
+					const rate = this.selectedRate({ props, $ })
+					const tagtyp = $("#tagtyp").value
+					const basis = tagtyp === "full" ? rate.full : rate.partial
+					const anzahl = tagtyp === "full" ? (parseNumber($("#anzahl").value) || 0) : 1
+
+					const fruehstueck = $("#fruehstueck").checked ? rate.full * 0.20 : 0
+					const mittag = $("#mittag").checked ? rate.full * 0.40 : 0
+					const abend = $("#abend").checked ? rate.full * 0.40 : 0
+
+					const proTag = Math.max(0, basis - fruehstueck - mittag - abend)
+					return Math.round(proTag * anzahl)
+				}
+			}
+
+			class TagesSatz extends CostKind {
+				template = `
+					<style>#tage { width: 10ch; text-align: right; }</style>
 					<input id="tage" placeholder="0"> Tage
 				`
 				total({ props, $ }) {
@@ -264,15 +434,8 @@
 			class TagesSatzAnteil extends CostKind {
 				template = `
 					<style>
-						#tage {
-							width: 10ch;
-							text-align: right;
-						}
-						#anteil{
-							width: 5ch;
-							margin-left: 1em;
-							text-align: right;
-						}
+						#tage { width: 10ch; text-align: right; }
+						#anteil { width: 5ch; margin-left: 1em; text-align: right; }
 					</style>
 					<input id="tage" placeholder="0"> Tage
 					<input id="anteil" placeholder="50" value="50"> % (Anteil im Team)
@@ -286,40 +449,132 @@
 
 			class OrgaSatz extends CostKind {
 				template = `
-				<style>
-					#tage {
-						width: 10ch;
-						text-align: right;
-					}
-					#anteil{
-						width: 5ch;
-						margin-left: 1em;
-						text-align: right;
-					}
-				</style>
-				<input id="tage" placeholder="0"> Tage (Schulungsdauer)
-				<input id="anteil" placeholder="50" value="50"> % (Anteil im Team)
-			`
+					<style>
+						#tage { width: 10ch; text-align: right; }
+						#anteil { width: 5ch; margin-left: 1em; text-align: right; }
+					</style>
+					<input id="tage" placeholder="0"> Tage (Schulungsdauer)
+					<input id="anteil" placeholder="50" value="50"> % (Anteil im Team)
+				`
 				total({ props, $ }) {
 					const tage = parseNumber($("#tage").value, { maxDecimalPlaces: 2 })
-
 					const anteil = parseNumber($("#anteil").value, { maxDecimalPlaces: 2, max: 100 }) / 100
 					return Math.round(Math.ceil(tage / 4) * anteil * props.centsProTag)
 				}
 			}
+
+			class BahnMitBahncard extends CostKind {
+				template = `
+					<style>
+						#preis { width: 10ch; text-align: right; }
+						#bahncard { margin-left: 1.5em; }
+					</style>
+					<input id="preis" placeholder="0,00"> €
+					<input id="bahncard" type="checkbox">
+					<label for="bahncard">BahnCard genutzt (+10 %)</label>
+				`
+				total({ $ }) {
+					const preis = parseAmount($("#preis").value)
+					return Math.round(preis * ($("#bahncard").checked ? 1.1 : 1.0))
+				}
+			}
+
+			class KmPauschale extends CostKind {
+				template = `
+					<style>#km { width: 10ch; text-align: right; }</style>
+					<input id="km" placeholder="0"> km
+				`
+				total({ props, $ }) {
+					const km = parseNumber($("#km").value)
+					const max = props.maxCents || Infinity
+					return Math.min(km * props.centsProKm, max)
+				}
+			}
+
+			class PkwTeamer extends CostKind {
+				template = `
+					<style>
+						#mitfahrer, #relevanz { display: none; }
+						#km { width: 10ch; text-align: right; }
+						#satz { margin-left: 1em; }
+						textarea { margin-top: 0.5em; width: 95%; height: 1em; min-height: 1em; resize: vertical; }
+					</style>
+					<input id="km" placeholder="0"> km
+					<select id="satz">
+						<option value="20" selected>alleine</option>
+						<option value="30" data-mitfahrer>1-3 Mitfahrer*innen</option>
+						<option value="35" data-mitfahrer>+4 Mitfahrer*innen</option>
+						<option value="42" data-mitfahrer>+5 Mitfahrer*innen</option>
+						<option value="49" data-mitfahrer>+6 Mitfahrer*innen</option>
+						<option value="56" data-mitfahrer>+7 Mitfahrer*innen</option>
+						<option value="63" data-mitfahrer>+8 Mitfahrer*innen</option>
+						<option value="30" data-relevanz>veranstaltungsrelevant</option>
+					</select>
+					<label id="label-satz" class="hint" for="satz"></label>
+					<textarea id="mitfahrer" placeholder="Name(n) Mitfahrer*innen"></textarea>
+					<textarea id="relevanz" placeholder="Erläuterung der Veranstaltungsrelevanz"></textarea>
+				`
+				onChange({ $ }) {
+					const option = $("#satz").options[$("#satz").selectedIndex]
+					$("#label-satz").innerHTML = " " + $("#satz").value + " ct/km"
+					$("#mitfahrer").style.display = option.hasAttribute("data-mitfahrer") ? "block" : "none"
+					$("#relevanz").style.display = option.hasAttribute("data-relevanz") ? "block" : "none"
+				}
+				total({ $ }) {
+					return parseNumber($("#satz").value) * parseNumber($("#km").value)
+				}
+			}
+
+			class PkwStandard extends CostKind {
+				template = `
+					<style>
+						#mitfahrer, #relevanz { display: none; }
+						#km { width: 10ch; text-align: right; }
+						#satz { margin-left: 1em; }
+						textarea { margin-top: 0.5em; width: 95%; height: 1em; min-height: 1em; resize: vertical; }
+					</style>
+					<input id="km" placeholder="0"> km
+					<select id="satz">
+						<optgroup label="Anzahl Mitfahrer*innen:">
+							<option value="7" selected>alleine</option>
+							<option value="14" data-mitfahrer>+1 Mitfahrer*in</option>
+							<option value="21" data-mitfahrer>+2 Mitfahrer*innen</option>
+							<option value="28" data-mitfahrer>+3 Mitfahrer*innen</option>
+							<option value="35" data-mitfahrer>+4 Mitfahrer*innen</option>
+							<option value="42" data-mitfahrer>+5 Mitfahrer*innen</option>
+							<option value="49" data-mitfahrer>+6 Mitfahrer*innen</option>
+							<option value="56" data-mitfahrer>+7 Mitfahrer*innen</option>
+							<option value="63" data-mitfahrer>+8 Mitfahrer*innen</option>
+							<option value="30" data-relevanz>veranstaltungsrelevant</option>
+						</optgroup>
+					</select>
+					<label id="label-satz" class="hint" for="satz"></label>
+					<textarea id="mitfahrer" placeholder="Name(n) Mitfahrer*innen"></textarea>
+					<textarea id="relevanz" placeholder="Erläuterung der Veranstaltungsrelevanz"></textarea>
+				`
+				onChange({ $ }) {
+					const option = $("#satz").options[$("#satz").selectedIndex]
+					$("#label-satz").innerHTML = " " + $("#satz").value + " ct/km"
+					$("#mitfahrer").style.display = option.hasAttribute("data-mitfahrer") ? "block" : "none"
+					$("#relevanz").style.display = option.hasAttribute("data-relevanz") ? "block" : "none"
+				}
+				total({ $ }) {
+					return parseNumber($("#satz").value) * parseNumber($("#km").value)
+				}
+			}
 		</script>
 
-		<cost-section heading="Fahrtkosten" id="fahrtkosten">
+		<cost-section heading="Fahrtkosten" id="fahrtkosten-standard" class="formular-version-standard">
 			<div class="reise">
 				<span>Hinreise am</span>
-				<input placeholder="(Datum)">
+				<input type="date">
 				<span>von</span>
 				<input placeholder="(Ort)">
 				<span>nach</span>
 				<input placeholder="(Ort)">
 
 				<span>Rückreise am</span>
-				<input placeholder="(Datum)">
+				<input type="date">
 				<span>von</span>
 				<input placeholder="(Ort)">
 				<span>nach</span>
@@ -328,17 +583,77 @@
 			<div class="hint">
 				Bitte alle Belege einzeln eintragen.
 			</div>
-
 			<script>
-				document.querySelector("#fahrtkosten").registerOptions([
-					new Bahn("Bahn", {
-						hint: `Ticketpreis 2. Klasse, 110 % Erstattung bei BahnCard-Nutzung,
-						auch Fahrradtickets & Sitzplatzreservierungen (nicht mit BC-Rabatt kombinierbar -> Einträge aufteilen)`
+				document.querySelector("#fahrtkosten-standard").registerOptions([
+					new BahnMitBahncard("Bahn", {
+						hint: `Ticketpreis 2. Klasse, 110 % Erstattung bei BahnCard-Nutzung. Auch Fahrradtickets & Sitzplatzreservierungen (nicht mit BC-Rabatt kombinierbar → Einträge aufteilen).`
 					}),
 					new Auslage("ÖPNV"),
 					new KmPauschale("Abo-Ticket", { centsProKm: 30, maxCents: 6300, hint: "30 ct/km (max. 63 €), Berechnung: Kürzeste Strecke mit Google Maps (Auto), Hin- und Rückweg" }),
 					new KmPauschale("Fahrrad", { centsProKm: 50, hint: "50 ct/km, Berechnung: Kürzeste Strecke mit Google Maps (Fahrrad), Hin- und Rückweg" }),
+					new PkwStandard("PKW")
+				])
+			</script>
+		</cost-section>
+
+		<cost-section heading="Fahrtkosten" id="fahrtkosten-personal" class="formular-version-personal">
+			<div class="reise">
+				<span>Hinreise am</span>
+				<input type="date">
+				<span>von</span>
+				<input placeholder="(Ort)">
+				<span>nach</span>
+				<input placeholder="(Ort)">
+
+				<span>Rückreise am</span>
+				<input type="date">
+				<span>von</span>
+				<input placeholder="(Ort)">
+				<span>nach</span>
+				<input placeholder="(Ort)">
+			</div>
+			<div class="hint">
+				Bitte alle Belege einzeln eintragen.
+			</div>
+			<script>
+				document.querySelector("#fahrtkosten-personal").registerOptions([
+					new BahnMitBahncard("Bahn", {
+						hint: `Ticketpreis 2. Klasse, 110 % Erstattung bei BahnCard-Nutzung. Auch Fahrradtickets & Sitzplatzreservierungen (nicht mit BC-Rabatt kombinierbar → Einträge aufteilen).`
+					}),
+					new Auslage("ÖPNV"),
 					new Pkw("PKW")
+				])
+			</script>
+		</cost-section>
+
+		<cost-section heading="Fahrtkosten" id="fahrtkosten-teamer" class="formular-version-teamer">
+			<div class="reise">
+				<span>Hinreise am</span>
+				<input type="date">
+				<span>von</span>
+				<input placeholder="(Ort)">
+				<span>nach</span>
+				<input placeholder="(Ort)">
+
+				<span>Rückreise am</span>
+				<input type="date">
+				<span>von</span>
+				<input placeholder="(Ort)">
+				<span>nach</span>
+				<input placeholder="(Ort)">
+			</div>
+			<div class="hint">
+				Bitte alle Belege einzeln eintragen.
+			</div>
+			<script>
+				document.querySelector("#fahrtkosten-teamer").registerOptions([
+					new Bahn("Bahn", {
+						hint: `Ticketpreis 2. Klasse. Bei Nutzung einer BahnCard ist diese separat abzurechnen.`
+					}),
+					new Auslage("ÖPNV"),
+					new KmPauschale("Abo-Ticket", { centsProKm: 30, maxCents: 6300, hint: "30 ct/km (max. 63 €), Berechnung: Kürzeste Strecke mit Google Maps (Auto), Hin- und Rückweg" }),
+					new KmPauschale("Fahrrad", { centsProKm: 50, hint: "50 ct/km, Berechnung: Kürzeste Strecke mit Google Maps (Fahrrad), Hin- und Rückweg" }),
+					new PkwTeamer("PKW")
 				])
 			</script>
 		</cost-section>
@@ -355,19 +670,51 @@
 			</script>
 		</cost-section>
 
+		<cost-section heading="Verpflegungsmehraufwand" id="verpflegung" class="formular-version-personal">
+			<div class="hint">
+				Deutschland: 14 € / 28 €. Für andere Länder können die Pauschalen frei eingetragen werden.
+			</div>
+			<script>
+				document.querySelector("#verpflegung").registerOptions([
+					new VerpflegungsMehraufwand("Deutschland", { countryType: "de" }),
+					new VerpflegungsMehraufwand("anderes Land", { countryType: "other" }),
+				])
+			</script>
+		</cost-section>
+
 		<cost-section heading="Auslagen" id="auslagen">
 			<div class="hint">
 				Bitte alle Belege einzeln eintragen.
 			</div>
 			<script>
+				/*
+				 * Unterkunft läuft hier bewusst als normale Auslage,
+				 * damit kein zusätzlicher Sonderblock notwendig ist.
+				 */
 				document.querySelector("#auslagen").registerOptions([
+					new Auslage("Hotel / Unterkunft"),
 					new Auslage("Einkäufe"),
 					new Auslage("Sonstiges"),
 				])
 			</script>
 		</cost-section>
 
-		<cost-footer connect-ids="honorar fahrtkosten auslagen">
+		<cost-footer connect-ids="fahrtkosten-standard auslagen" class="formular-version-standard">
+			<p class="hint">
+				Bitte alle Belege einscannen/abfotografieren und <strong><u>digital</u></strong> dem PDF anhängen oder als Anhang mitschicken (an <a href="mailto:info@jdav-nrw.de">info@jdav-nrw.de</a>).
+			</p>
+		</cost-footer>
+		<cost-footer connect-ids="fahrtkosten-personal verpflegung auslagen" class="formular-version-personal">
+			<p class="hint">
+				Bitte alle Belege einscannen/abfotografieren und <strong><u>digital</u></strong> dem PDF anhängen oder als Anhang mitschicken (an <a href="mailto:info@jdav-nrw.de">info@jdav-nrw.de</a>).
+			</p>
+			<p class="hint">
+				Es gilt eine <strong><u>Frist von 2 Wochen</u></strong> nach Veranstaltungsende für das Einreichen deiner Abrechnung.
+				Nach Überschreiten der Frist wird eine Gebühr von 50 € einbehalten (jedoch maximal der Gesamtbetrag).
+				Nach 8 Wochen wird nichts mehr erstattet. Wenn du absehbar mehr Zeit benötigst, melde dich rechtzeitig für eine Fristverlängerung bei uns.
+			</p>
+		</cost-footer>
+		<cost-footer connect-ids="honorar fahrtkosten-teamer auslagen" class="formular-version-teamer">
 			<p class="hint">
 				Bitte alle Belege einscannen/abfotografieren und <strong><u>digital</u></strong> dem PDF anhängen oder als Anhang mitschicken (an <a href="mailto:info@jdav-nrw.de">info@jdav-nrw.de</a>).
 			</p>
@@ -384,6 +731,40 @@
 	</div>
 
 	<script>warnBeforeLeavingPage()</script>
+	<script>
+		function setFormVersion(version) {
+			const titleMap = {
+				standard: "Abrechnung | JDAV NRW",
+				personal: "Abrechnung Personal / LJL | JDAV NRW",
+				teamer:   "Abrechnung Teamer*innen | JDAV NRW",
+			}
+			document.body.dataset.formularVersion = version
+			const header = document.querySelector("cost-header")
+			if (header.getAttribute("variant") !== version) {
+				header.setAttribute("variant", version)
+			}
+			document.title = titleMap[version] ?? titleMap.standard
+			const url = new URL(window.location)
+			if (version === "standard") {
+				url.searchParams.delete("version")
+			} else {
+				url.searchParams.set("version", version)
+			}
+			history.replaceState(null, "", url)
+		}
+
+		const urlVersion = new URL(window.location).searchParams.get("version")
+		setFormVersion(["standard", "personal", "teamer"].includes(urlVersion) ? urlVersion : "standard")
+		document.querySelector("cost-header").addEventListener("version-change", (e) => setFormVersion(e.detail))
+
+		;["fahrtkosten-standard", "fahrtkosten-personal", "fahrtkosten-teamer"].forEach(id => {
+			const section = document.querySelector("#" + id)
+			const reise = section.querySelector(".reise")
+			section.addEventListener("cost-item-updated", () => {
+				reise.style.display = section.shadowRoot.querySelectorAll("cost-item").length > 0 ? "grid" : "none"
+			})
+		})
+	</script>
 </body>
 
 </html>
